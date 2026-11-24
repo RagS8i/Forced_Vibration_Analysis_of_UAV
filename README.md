@@ -36,6 +36,7 @@ the first thing a reader sees. Supporting material is grouped by type.
 .
 ├── ME312_surrogate_pipeline_v2.ipynb   # final end-to-end ML pipeline (executed)
 ├── README.md                           # this document
+├── requirements.txt                    # pinned Python dependencies
 ├── data/
 │   ├── raw/Dataset.xlsx                # frozen VSPAERO + beam-theory dataset
 │   ├── processed/Dataset_screened.xlsx # screened dataset (133 retained rows)
@@ -57,6 +58,7 @@ the first thing a reader sees. Supporting material is grouped by type.
 | File | Function |
 |---|---|
 | `README.md` | This document. |
+| `requirements.txt` | Pinned Python dependencies for the notebook, pipeline, and website (Python 3.12). |
 | `ME312_surrogate_pipeline_v2.ipynb` | **The single ML pipeline notebook** (executed). Screening → FE branch → BET prior → feature engineering → model definitions → repeated CV → metrics → calibration → diagnostics → material envelope → RPM sweep → artifact export. It reads and writes the `data/`, `models/`, and `figures/` folders. |
 
 ### `data/`
@@ -345,6 +347,15 @@ Backend endpoints (in `site/app.py`): `/api/predict`, `/api/sweep`, `/api/materi
 
 ## 7. Reproduction
 
+Environment (from the repository root):
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m ipykernel install --user --name me312 --display-name me312
+```
+
+Run the notebook:
 ```bash
 cd "/Users/raghav/Downloads/Study/Vibrations prject"
 source .venv/bin/activate

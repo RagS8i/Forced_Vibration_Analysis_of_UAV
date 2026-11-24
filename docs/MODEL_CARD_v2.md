@@ -162,6 +162,7 @@ No generated `Results/results_*/prop_setup_*.vsp3` files are present, so it cann
 ## Files
 
 - `ME312_surrogate_pipeline_v2.ipynb` — executed main deliverable, kept at the repository root.
+- `requirements.txt` — pinned Python 3.12 dependencies for the pipeline and website.
 - `data/results/cv_results_v2.csv`, `data/results/test_predictions_v2.csv`, `data/results/summary_v2.csv`, `data/results/material_envelope_v2.csv`.
 - `models/model_v2.json` — portable coefficients/scalers/conformal calibration.
 - `models/models_v2.pkl` — sklearn objects; requires the notebook class definitions to unpickle.
@@ -172,7 +173,10 @@ No generated `Results/results_*/prop_setup_*.vsp3` files are present, so it cann
 
 ```bash
 cd "/Users/raghav/Downloads/Study/Vibrations prject"
+python3.12 -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
+python -m ipykernel install --user --name me312 --display-name me312
 jupyter nbconvert --to notebook --execute --inplace \
   --ExecutePreprocessor.kernel_name=me312 \
   --ExecutePreprocessor.timeout=1200 \
