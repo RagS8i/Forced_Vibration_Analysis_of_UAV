@@ -1,0 +1,9 @@
+tier,item,value
+exact,f_n max relative error,1.0265935252995462e-06
+exact,k_tip max relative error,1.037548513771469e-08
+ranking,locked-test risk AUC,0.9571428571428571
+ranking,locked-test Spearman,0.9511599511599511
+amplitude,locked-test amp R2,0.761831336077123
+amplitude,locked-test within 2x,0.8888888888888888
+calibration,90% CT coverage,0.9629629629629629
+calibration,90% amplitude coverage,0.9629629629629629

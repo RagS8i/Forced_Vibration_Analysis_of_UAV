@@ -1,0 +1,157 @@
+void main()
+{
+    const string in_vsp3 = "propellerai_baseline.vsp3"; // Original baseline file
+    const int    NREV    = 20; // Number of propeller rotations
+
+    // Data from spreadsheet
+    array<int>    ids       = { 241, 242, 243, 244, 245, 246, 247, 248, 249 }; // id numbers for different runs
+    array<double> rpms      = { 3682.32, 4197.57, 509.96, 1579.15, 4713.05, 2908.02, 2085.61, 1735.29, 3111.41 }; // RPM
+    array<double> vinfs     = { 6.54, 22.84, 3.16, 20.83, 2.83, 17.96, 12.34, 24.2, 6.09 }; // Freestream Velocity, m/s
+    array<int>    nblades   = { 5, 3, 4, 5, 3, 4, 3, 4, 3 }; // Number of blades
+    array<double> beta34    = { 37.08, 0.11, 23.88, 40.72, 17.04, 31.38, 9.45, 29.19, 5.85 }; // Blade pitch, deg
+    array<double> diameters = { 0.31, 0.49, 0.17, 0.2, 0.43, 0.26, 0.4, 0.41, 0.18 }; // Diameter, m
+    array<double> tilts     = { 8.07, 14.13, 25.59, 31.24, 19.74, 2.42, 35.89, 8.93, 42.75 }; // Tilt Angle, deg
+    array<double> chord0    = { 0.08, 0.15, 0.22, 0.32, 0.09, 0.18, 0.25, 0.22, 0.14 }; // Crd0, m
+    array<double> chord1    = { 0.08, 0.15, 0.22, 0.32, 0.09, 0.18, 0.25, 0.22, 0.14 }; // Crd1, m
+    array<double> chord2    = { 0.27, 0.18, 0.39, 0.21, 0.34, 0.11, 0.24, 0.2, 0.33 }; // Crd2, m
+    array<double> chord3    = { 0.17, 0.13, 0.25, 0.07, 0.27, 0.32, 0.19, 0.09, 0.3 }; // Crd3, m
+    array<double> chord4    = { 0.12, 0.17, 0.28, 0.13, 0.32, 0.27, 0.08, 0.15, 0.34 }; // Crd4, m
+    array<double> chord5    = { 0.08, 0.14, 0.31, 0.12, 0.22, 0.28, 0.17, 0.35, 0.15 }; // Crd5, m
+    array<double> twist0    = { 30, 51.26, 25.87, 54.02, 19.36, 1.91, 44.24, 38.36, 5.45 }; // Twist0, m
+    array<double> twist1    = { 30, 51.26, 25.87, 54.02, 19.36, 1.91, 44.24, 38.36, 5.45 }; // Twist1, m
+    array<double> twist2    = { 30.43, 42.64, 2.86, 11.9, 54.21, 39.44, 26.8, 20.36, 32.22 }; // Twist2, m
+    array<double> twist3    = { 16.58, 44.2, 3.49, 42.71, 8.05, 31.16, 21.09, 11.63, 39.08 }; // Twist3, m
+    array<double> twist4    = { 37.08, 0.11, 23.88, 40.72, 17.04, 31.38, 9.45, 29.19, 5.85 }; // Twist4, m
+    array<double> twist5    = { 24.35, 36.51, 11.18, 19.55, 32.99, 25.21, 2.41, 37.84, 14.39 }; // Twist5, m
+    array<double> sweep     = { 13.25, 42.47, 21.72, 28.04, 37.04, 4.62, 58.63, 22.97, 31.97 }; // Sweep, deg
+    array<double> t0        = { 0.1487, 0.1231, 0.0817, 0.07, 0.1114, 0.1379, 0.0894, 0.1163, 0.0762 }; // Thickness0, m
+    array<double> t1        = { 0.1487, 0.1231, 0.0817, 0.07, 0.1114, 0.1379, 0.0894, 0.1163, 0.0762 }; // Thickness1, m
+
+    // Ensure same length
+    int N = int(ids.length());
+    if ( rpms.length() != N || vinfs.length() != N || nblades.length() != N ||
+         beta34.length() != N || diameters.length() != N || tilts.length() != N || chord0.length() != N || chord1.length() != N || chord2.length() != N 
+         || chord3.length() != N || chord4.length() != N || chord5.length() != N || twist0.length() != N || twist1.length() != N || twist2.length() != N
+         || twist3.length() != N || twist4.length() != N || twist5.length() != N || sweep.length() != N || t0.length() != N || t1.length() != N )
+    {
+        Print("ERROR: data columns differ in length.\n"); return;
+    }
+
+    for ( int i = 0; i < N; ++i )
+    {
+	
+		// ---- I/O ----
+		string out_dir  = "Results/results_#" + ids[i];
+		string base     = out_dir + "/prop_setup_" + ids[i];
+        string out_vsp3 = base + ".vsp3";
+        string out_csv  = out_dir + "/exported_data.csv";
+		filesystem fs;
+		fs.makeDir( out_dir );          // harmless if it already exists
+		// ---- Open model ----
+		ClearVSPModel();
+		ReadVSPFile( in_vsp3 );
+		Update();
+
+		// ---- Find prop ----
+		string prop_id = "";
+		array<string> props = FindGeomsWithName( "PropGeom" );
+		if ( props.size() > 0 ) prop_id = props[0];
+		if ( prop_id == "" ) { Print("ERROR: PropGeom not found\n"); return; }
+
+		// --- Apply design point i ---
+        SetParmValUpdate( prop_id, "Diameter",       "Design", diameters[i] );
+        SetParmValUpdate( prop_id, "NumBlade",       "Design", nblades[i] );
+        SetParmValUpdate( prop_id, "Beta34",         "Design", beta34[i] );
+        SetParmValUpdate( prop_id, "Y_Rel_Rotation", "XForm",  tilts[i] );
+        SetParmValUpdate( prop_id, "crd_0",          "Chord",  chord0[i] );
+        SetParmValUpdate( prop_id, "crd_1",          "Chord",  chord1[i] );
+        SetParmValUpdate( prop_id, "crd_2",          "Chord",  chord2[i] );
+	SetParmValUpdate( prop_id, "crd_3",          "Chord",  chord3[i] );
+	SetParmValUpdate( prop_id, "crd_4",          "Chord",  chord4[i] );
+	SetParmValUpdate( prop_id, "crd_5",          "Chord",  chord5[i] );
+	SetParmValUpdate( prop_id, "tw_0",           "Twist",  twist0[i] );
+	SetParmValUpdate( prop_id, "tw_1",           "Twist",  twist1[i] );
+	SetParmValUpdate( prop_id, "tw_2",           "Twist",  twist2[i] );
+	SetParmValUpdate( prop_id, "tw_3",           "Twist",  twist3[i] );
+	SetParmValUpdate( prop_id, "tw_4",           "Twist",  twist4[i] );
+	SetParmValUpdate( prop_id, "tw_5",           "Twist",  twist5[i] );
+	SetParmValUpdate( prop_id, "sw_1",           "Sweep",  sweep[i] );
+	SetParmValUpdate( prop_id, "toc_0",          "Thick",  t0[i] );
+	SetParmValUpdate( prop_id, "toc_1",          "Thick",  t1[i] );
+		const double VINF = vinfs[i];  // m/s
+		const double RPM_VAL = rpms[i];
+		array<int> numrevs(1);  numrevs[0] = NREV;
+		
+		// ---- Ensure prop is a rotating-blades prop & in VSPAERO set ---- (required for Unsteady Groups to exist)
+		SetParmValUpdate( prop_id, "PropMode", "Design", PROP_BLADES );     // rotating blades
+		string vspaset = FindContainer( "VSPAEROSettings", 0 );
+		if ( vspaset == "" ) { Print("ERROR: VSPAEROSettings not found\n"); return; }
+		SetParmVal( FindParm( vspaset, "GeomSet", "VSPAERO" ), SET_ALL ); // include in set
+		Update();
+		
+		// ---- Set Vinf both ways: Parm (saved) and Analysis input (used at run) ----
+		SetParmVal( FindParm( vspaset, "Vinf", "VSPAERO" ), VINF );
+		string analysis = "VSPAEROSweep";
+		SetAnalysisInputDefaults( analysis );
+		array<double> vinf(1); vinf[0] = VINF;
+		SetDoubleAnalysisInput( analysis, "Vinf", vinf, 0 ); 
+		SetIntAnalysisInput( analysis, "AutoTimeNumRevs",  numrevs, 0 );
+
+		int ng = GetNumUnsteadyGroups();                                             // discover groups. 
+		Print("Unsteady groups: " + ng + "\n");
+		bool rpm_set = false;
+		for ( int gi = 0; gi < ng; ++gi )
+		{
+			string grp_id = FindUnsteadyGroup( gi );
+			if ( grp_id == "" ) continue;
+			string rpm_parm = FindParm( grp_id, "RPM", "UnsteadyGroup" );
+			if ( rpm_parm != "" )
+			{
+				SetParmValUpdate( rpm_parm, RPM_VAL );
+				Print("Set RPM on group " + gi + " to " + RPM_VAL + "\n");
+				rpm_set = true; break;
+			}
+		}
+		if ( !rpm_set ) Print("WARN: No UnsteadyGroup::RPM parm found.\n");
+		Update();
+
+		// ---- Save modified setup ----
+		SetVSP3FileName( out_vsp3 );
+		WriteVSPFile( out_vsp3, SET_ALL );
+		Print("Saved: " + out_vsp3 + "\n");
+		
+		//==== Analysis: VSPAero Compute Geometry to Create Vortex Lattice DegenGeom File ====//
+		string compgeom_name = "VSPAEROComputeGeometry";
+		Print( compgeom_name );
+
+		// Set defaults
+		SetAnalysisInputDefaults( compgeom_name );
+		
+		// Analysis method
+		array< int > analysis_method = GetIntAnalysisInput( compgeom_name, "AnalysisMethod" );
+		analysis_method[0] = ( VSPAERO_ANALYSIS_METHOD::VORTEX_LATTICE );
+		SetIntAnalysisInput( compgeom_name, "AnalysisMethod", analysis_method );
+
+		// list inputs, type, and current values
+		PrintAnalysisInputs( compgeom_name );
+
+		// Execute
+		Print( "\tExecuting..." );
+		string compgeom_resid = ExecAnalysis( compgeom_name );
+		Print( "COMPLETE" );
+
+		// Get & Display Results
+		PrintResults( compgeom_resid );
+
+		// ---- Run VSPAERO ----
+		Print("\nRunning VSPAERO for case " + ids[i] + " ...\n");
+		string res_id = ExecAnalysis( analysis );
+		Print("VSPAERO done for case " + ids[i] + ".\n");
+
+		// ---- Export CSV (like GUI 'Export to *.csv') ----
+		WriteResultsCSVFile( res_id, out_csv );
+		Print("CSV exported: " + out_csv + "\n");
+	}
+    // ---- Show any API errors ----
+    while ( GetNumTotalErrors() > 0 ) { ErrorObj e = PopLastError(); Print( e.GetErrorString() ); }
+}

@@ -1,0 +1,101 @@
+import numpy as np
+import pandas as pd
+from scipy.linalg import eigh
+
+MATERIALS = {
+    "GF_Nylon": dict(E=9.0e9,  RHO=1370.0, ZETA=0.02),   # PA66-GF30 reference attached 
+}
+MATERIAL = "GF_Nylon"
+E, RHO, ZETA = (MATERIALS[MATERIAL][k] for k in ("E", "RHO", "ZETA"))
+EPS = 0.10      # fraction of per-blade thrust that fluctuates once per revolution
+HUB = 0.2       # blade root at r/R = 0.2 ; 5 stations spread evenly from 0.2 to 1.0
+NEL = 30        # number of finite elements along the blade
+
+def fe_cantilever(L, A, I):
+    """ A, I: arrays of cross-section area and second moment of area per element. Returns natural frequency (Hz) and tip stiffness (N/m)."""
+    nel = len(A)
+    h = L / nel
+    n = 2 * (nel + 1)
+    K = np.zeros((n, n)); M = np.zeros((n, n))
+    for e in range(nel):
+        ke = E * I[e] / h**3 * np.array([[12, 6*h, -12, 6*h],
+                                         [6*h, 4*h*h, -6*h, 2*h*h],
+                                         [-12, -6*h, 12, -6*h],
+                                         [6*h, 2*h*h, -6*h, 4*h*h]])
+        me = RHO * A[e] * h / 420 * np.array([[156, 22*h, 54, -13*h],
+                                              [22*h, 4*h*h, 13*h, -3*h*h],
+                                              [54, 13*h, 156, -22*h],
+                                              [-13*h, -3*h*h, -22*h, 4*h*h]])
+        idx = slice(2*e, 2*e + 4)
+        K[idx, idx] += ke; M[idx, idx] += me
+    K, M = K[2:, 2:], M[2:, 2:]                      # clamp the root
+    w2 = eigh(K, M, eigvals_only=True, subset_by_index=[0, 0])[0]
+    fn = np.sqrt(w2) / (2 * np.pi)
+    f = np.zeros(K.shape[0]); f[-2] = 1.0            # unit force at the tip
+    k_tip = 1.0 / np.linalg.solve(K, f)[-2]
+    return fn, k_tip
+
+"""First flapwise natural frequency (Hz) and tip stiffness (N/m) of the tapered blade."""
+def blade_fn_and_k(R, chords_over_R, tc, nel=None):
+    nel = nel or NEL
+    L = R * (1 - HUB)
+    st = np.linspace(0, L, 5)
+    c_st = np.array(chords_over_R) * R
+    xe = (np.arange(nel) + 0.5) * L / nel
+    c = np.interp(xe, st, c_st)
+    t = tc * c
+    A = np.pi * c * t / 4            # elliptical section area
+    I = np.pi * c * t**3 / 64        # bending about the chord axis (flapwise)
+    return fe_cantilever(L, A, I)
+
+
+def magnification(r, zeta):
+    return 1.0 / np.sqrt((1 - r**2)**2 + (2 * zeta * r)**2)
+
+def add_columns(df):
+    out = []
+    for _, r in df.iterrows():
+        R = r["Diameter"] / 2
+        ch = [r[f"Chord{i}"] for i in range(1, 6)]
+        fn, k = blade_fn_and_k(R, ch, r["AirfoilThickness"])
+        f_exc = r["RPM"] / 60.0
+        ratio = f_exc / fn
+        mf = magnification(ratio, ZETA)
+        F0 = EPS * abs(r["Thrust [N]"]) / r["Blades"] if pd.notna(r["Thrust [N]"]) else np.nan
+        out.append((fn, f_exc, ratio, mf, F0, F0 / k * mf * 1000 if pd.notna(F0) else np.nan))
+    cols = ["fn_Hz", "f_1P_Hz", "r_freq_ratio", "MagnificationFactor", "ForcePerBlade_N", "Amplitude_mm"]
+    return pd.concat([df, pd.DataFrame(out, columns=cols, index=df.index)], axis=1)
+
+def self_test():
+    global E, RHO
+    keep = (E, RHO)
+
+    # 1) Aluminium bar 0.2 m x 30 mm x 4 mm: analytical (1.875^2/2pi)*sqrt(EI/(rho A L^4)) = 81.7 Hz
+    E, RHO = 69e9, 2700.0
+    L, w, t = 0.2, 0.03, 0.004
+    A = np.full(NEL, w*t); I = np.full(NEL, w*t**3/12)
+    fn, k = fe_cantilever(L, A, I)
+    fn_exact = (1.8751041**2/(2*np.pi)) * np.sqrt(E*(w*t**3/12)/(RHO*w*t*L**4))
+    print(f"aluminium bar : FE {fn:.2f} Hz  analytical {fn_exact:.2f} Hz   tip k FE {k:.1f} vs 3EI/L^3 {3*E*(w*t**3/12)/L**3:.1f}")
+
+    # 2) SOLIDWORKS verification example (Frequency_7): 6 in x 0.1 in x 0.2 in, E=1e7 psi, theory 181.17 Hz
+    E, RHO = 1e7*6894.757, 0.0946239*27679.9
+    L = 6*0.0254; w, t = 0.1*0.0254, 0.2*0.0254
+    A = np.full(NEL, w*t); I = np.full(NEL, w*t**3/12)
+    fn, _ = fe_cantilever(L, A, I)
+    print(f"SOLIDWORKS ex.: FE {fn:.2f} Hz  published theory 181.17 Hz   error {100*(fn/181.17-1):+.2f} %")
+    
+    # 3) mesh convergence on a tapered test blade
+    E, RHO = keep
+    for n in (5, 10, 20, 30, 60, 120):
+        fn, k = blade_fn_and_k(0.127, [0.2, 0.25, 0.22, 0.15, 0.08], 0.10, nel=n)
+        print(f"convergence   : {n:4d} elements -> fn {fn:.3f} Hz, k {k:.2f} N/m")
+
+
+if __name__ == "__main__":
+    self_test()
+    df = pd.read_excel("samples_v3_17D_Sujal__1_.xlsx").drop(columns=["Unnamed: 18"], errors="ignore")
+    res = add_columns(df)
+    res["Usable"] = (res["Thrust [N]"] > 0) & (res["Thrust [N]"] < 1e4) & (res["Power [W]"].abs() < 1e6)
+    res.to_excel("samples_with_amplitude.xlsx", index=False)
+    print("usable rows:", int(res["Usable"].sum()), "of", len(res))
