@@ -14,7 +14,7 @@ The interactive surrogate and all model-card findings are served by **`site/app.
 
 | Item | Value |
 |---|---|
-| Raw VSPAERO/beam rows | 148 (`Dataset.xlsx`) |
+| Raw VSPAERO/beam rows | 148 (`data/raw/Dataset.xlsx`) |
 | Retained after physical screening | 133 (127 `ok` + 6 `watch`) |
 | Dropped | 11 hard failures + 4 suspect + 2 numerical overflows |
 | Propeller rows (CT > 0) | 77 |
@@ -29,32 +29,80 @@ The interactive surrogate and all model-card findings are served by **`site/app.
 
 ## 2. Repository structure and function of each file
 
+The executed pipeline notebook is intentionally kept at the repository root so the end-to-end ML work is
+the first thing a reader sees. Supporting material is grouped by type.
+
+```text
+.
+├── ME312_surrogate_pipeline_v2.ipynb   # final end-to-end ML pipeline (executed)
+├── README.md                           # this document
+├── data/
+│   ├── raw/Dataset.xlsx                # frozen VSPAERO + beam-theory dataset
+│   ├── processed/Dataset_screened.xlsx # screened dataset (133 retained rows)
+│   └── results/                        # CV, test, summary, material-envelope CSVs
+├── models/
+│   ├── model_v2.json                   # portable weights/coefficients + scalers
+│   └── models_v2.pkl                   # pickled sklearn estimators
+├── figures/                            # all six diagnostic/result figures
+├── docs/
+│   ├── MODEL_CARD_v2.md                # formal model card
+│   └── proposal/                       # course proposal (.md and .docx)
+├── src/Natural_Frequency_FE_Code       # standalone FE beam code + self-tests
+├── vsp/                                # OpenVSP baseline geometry and sweep script
+└── site/                               # local interactive surrogate website
+```
+
 ### Root
 
 | File | Function |
 |---|---|
 | `README.md` | This document. |
-| `ME312_surrogate_pipeline_v2.ipynb` | **The single ML pipeline notebook** (executed). Screening → FE branch → BET prior → feature engineering → model definitions → repeated CV → metrics → calibration → diagnostics → material envelope → RPM sweep → artifact export. |
-| `MODEL_CARD_v2.md` | Formal model card: architecture, data/scope, performance tables, uncertainty, domain check, material envelope, forensic check, limitations, reproduction command. |
-| `project preoposal.md` | Original course project proposal (objectives, methodology, validation plan, timeline). |
-| `ME312_Vibration_Project_Proposal-1.docx` | Submitted proposal document (same content as above, Word format). |
-| `Natural_Frequency_FE_Code` | Standalone copy of the 30-element Euler–Bernoulli cantilever FE beam (`fe_cantilever`, `blade_fn_and_k`, `magnification`, `add_columns`) and its self-tests. The same code is embedded in the notebook and in `site/app.py`. |
-| `propellerai_baseline.vsp3` | Baseline OpenVSP geometry used to derive the blade station convention (chord stations 0.2/0.4/0.6/0.8/1.0 R, twist 0.2/0.4/0.6/0.75/1.0 R). |
-| `prop-loop.vspscript` | OpenVSP loop script that drives the parametric sweep / VSPAERO runs used to build the dataset. |
-| `Dataset.xlsx` | Raw dataset: 148 rows of VSPAERO outputs (`Force`, `Moment`, `Power`) plus beam-theory columns (`fn_Hz`, `r_freq_ratio`, `MagnificationFactor`, `ForcePerBlade_N`, `Amplitude_mm`) and the 17 raw inputs. |
-| `Dataset_screened.xlsx` | Same 148 rows with added `CT`, `CP`, `screen_status`, `screen_reason`. This is what the screening rules produce; 133 rows are retained. |
-| `cv_results_v2.csv` | Repeated 5-fold CV (3 repeats) results for every candidate CT model: CT R²/MAE/sign, amplitude R²/RMSE/within-2x/Spearman/risk AUC, timing. |
-| `test_predictions_v2.csv` | Locked 27-row test-set predictions: `CT`, `Amplitude_mm`, `r`, `CT_hat`, `amp_hat`, `log10_amp_err`. |
-| `summary_v2.csv` | Exactness summary (f_n max rel. error, k_tip max rel. error) and locked-test ranking metrics. |
-| `material_envelope_v2.csv` | Material/damping envelope: median f_n ratio, k ratio, amplitude ratio and p05/p95 amplitude ratios for GF-Nylon / Al 6061 / CFRP / PLA. |
-| `model_v2.json` | Portable model artifact: feature sets, Huber coefficients/scalers, ensemble composition, conformal calibration (`q90`, scale), materials, metrics. Consumed by `site/app.py`. |
-| `models_v2.pkl` | Pickled sklearn objects. Requires the notebook's class definitions to unpickle; provided for offline analysis. |
-| `fig_v2_calibration.png` | Conformal-interval calibration figure (locked-test coverage). |
-| `fig_v2_diagnostics.png` | Predicted-vs-observed CT and amplitude on the locked test. |
-| `fig_v2_near_resonance.png` | Leave-one-design-out stress test for the 7 near-resonance rows. |
-| `fig_v2_coefficients.png` | Standardised Huber coefficients for the `b13` / `b13w` heads. |
-| `fig_v2_material_damping.png` | Material and damping envelope figure. |
-| `fig_v2_rpm_sweep.png` | Physics-driven amplitude-vs-RPM curve. |
+| `ME312_surrogate_pipeline_v2.ipynb` | **The single ML pipeline notebook** (executed). Screening → FE branch → BET prior → feature engineering → model definitions → repeated CV → metrics → calibration → diagnostics → material envelope → RPM sweep → artifact export. It reads and writes the `data/`, `models/`, and `figures/` folders. |
+
+### `data/`
+
+| File | Function |
+|---|---|
+| `data/raw/Dataset.xlsx` | Raw dataset: 148 rows of VSPAERO outputs (`Force`, `Moment`, `Power`) plus beam-theory columns (`fn_Hz`, `r_freq_ratio`, `MagnificationFactor`, `ForcePerBlade_N`, `Amplitude_mm`) and the 17 raw inputs. |
+| `data/processed/Dataset_screened.xlsx` | Same 148 rows with added `CT`, `CP`, `screen_status`, `screen_reason`. This is what the screening rules produce; 133 rows are retained. |
+| `data/results/cv_results_v2.csv` | Repeated 5-fold CV (3 repeats) results for every candidate CT model: CT R²/MAE/sign, amplitude R²/RMSE/within-2x/Spearman/risk AUC, timing. |
+| `data/results/test_predictions_v2.csv` | Locked 27-row test-set predictions: `CT`, `Amplitude_mm`, `r`, `CT_hat`, `amp_hat`, `log10_amp_err`. |
+| `data/results/summary_v2.csv` | Exactness summary (f_n max rel. error, k_tip max rel. error) and locked-test ranking metrics. |
+| `data/results/material_envelope_v2.csv` | Material/damping envelope: median f_n ratio, k ratio, amplitude ratio and p05/p95 amplitude ratios for GF-Nylon / Al 6061 / CFRP / PLA. |
+
+### `models/`
+
+| File | Function |
+|---|---|
+| `models/model_v2.json` | Portable model artifact: feature sets, Huber coefficients/scalers, ensemble composition, conformal calibration (`q90`, scale), materials, metrics. Source definition consumed by `site/app.py`. |
+| `models/models_v2.pkl` | Pickled sklearn objects. Requires the notebook's class definitions to unpickle; provided for offline analysis. |
+
+### `figures/`
+
+| File | Function |
+|---|---|
+| `figures/fig_v2_calibration.png` | Conformal-interval calibration figure (locked-test coverage). |
+| `figures/fig_v2_diagnostics.png` | Predicted-vs-observed CT and amplitude on the locked test. |
+| `figures/fig_v2_near_resonance.png` | Leave-one-design-out stress test for the 7 near-resonance rows. |
+| `figures/fig_v2_coefficients.png` | Standardised Huber coefficients for the `b13` / `b13w` heads. |
+| `figures/fig_v2_material_damping.png` | Material and damping envelope figure. |
+| `figures/fig_v2_rpm_sweep.png` | Physics-driven amplitude-vs-RPM curve. |
+
+### `docs/`
+
+| File | Function |
+|---|---|
+| `docs/MODEL_CARD_v2.md` | Formal model card: architecture, data/scope, performance tables, uncertainty, domain check, material envelope, forensic check, limitations, reproduction command. |
+| `docs/proposal/project_proposal.md` | Original course project proposal (objectives, methodology, validation plan, timeline). |
+| `docs/proposal/ME312_Vibration_Project_Proposal-1.docx` | Submitted proposal document (same content as above, Word format). |
+
+### `src/` and `vsp/`
+
+| File | Function |
+|---|---|
+| `src/Natural_Frequency_FE_Code` | Standalone copy of the 30-element Euler–Bernoulli cantilever FE beam (`fe_cantilever`, `blade_fn_and_k`, `magnification`, `add_columns`) and its self-tests. The same code is embedded in the notebook and in `site/app.py`. |
+| `vsp/propellerai_baseline.vsp3` | Baseline OpenVSP geometry used to derive the blade station convention (chord stations 0.2/0.4/0.6/0.8/1.0 R, twist 0.2/0.4/0.6/0.75/1.0 R). |
+| `vsp/prop-loop.vspscript` | OpenVSP loop script that drives the parametric sweep / VSPAERO runs used to build the dataset. |
 
 ### `site/`
 
@@ -67,7 +115,7 @@ The interactive surrogate and all model-card findings are served by **`site/app.
 | `site/static/app.js` | Frontend logic: forms, charts, geometry SVGs, lightbox, API calls. |
 | `site/static/vendor/chart.umd.min.js` | Chart.js served locally (no internet required). |
 | `site/static/favicon.svg` | Site icon. |
-| `site/data/*` | Copies of the datasets, CSV results, figures and `model_v2.json` served to the browser. |
+| `site/data/*` | Self-contained copies of the datasets, CSV results, figures and `model_v2.json` served to the browser. The inference backend prefers the canonical files under `../data/` and `../models/` when present, and falls back to these copies. |
 
 ---
 
@@ -78,11 +126,11 @@ The interactive surrogate and all model-card findings are served by **`site/app.
 eigenproblem and returns the first flapwise natural frequency `f_n` (Hz) and tip stiffness `k_tip` (N/m).
 `blade_fn_and_k(R, chords, tc, mat)` interpolates chord/twist to element stations and builds `A`, `I`.
 
-Self-tests (in `Natural_Frequency_FE_Code` and the notebook) check against an aluminium bar
+Self-tests (in `src/Natural_Frequency_FE_Code` and the notebook) check against an aluminium bar
 analytical solution, a SOLIDWORKS published example, and a mesh-convergence study.
 
 ### 3.2 Dataset and physical screening
-`Dataset.xlsx` has 148 rows. `physical_screen()` reproduces the screening rules:
+`data/raw/Dataset.xlsx` has 148 rows. `physical_screen()` reproduces the screening rules:
 - **hard** — `|C_T| > 5` or `C_P > 5` (no real propeller), or `|F| ≥ 5e9 N` (numerical overflow).
 - **suspect** — energy-balance violations (thrust with negative shaft power; extracted power > 1.5× flow work; propulsive efficiency > 1).
 
@@ -143,6 +191,38 @@ plus 5-nearest-neighbour distance (95 % training threshold). Unrealistic combina
 ### 3.11 Material & damping envelope
 `C_T` is independent of material in the rigid-blade model; the FE branch and magnification are
 recomputed analytically for Al 6061, quasi-isotropic CFRP and PLA (illustrative only).
+
+### 3.12 Why Huber regression and not Gaussian-process regression?
+
+A Gaussian process was the proposal's default choice and is kept in the notebook as the `GP base3`
+benchmark. It was not chosen as the final head for five concrete reasons:
+
+1. **The learning problem changed.** The exact FE branch now supplies `f_n`, `k_tip`, `r`, and the
+   magnification factor. The ML head only corrects the BET thrust prior, so the target is much closer to
+   a low-dimensional, locally linear correction than the original 17-input black-box mapping.
+   A linear model with a robust loss is the appropriate complexity for that residual.
+2. **The GP under-performs out of sample.** In repeated 5-fold CV (3 repeats), `GP base3` reaches
+   CT R² = 0.651 and amplitude R² = 0.585, versus 0.728 and 0.790 for the BET-Huber ensemble.
+   On the locked 27-row test the GP amplitude R² is 0.300 versus 0.762 for the ensemble.
+   The GP is retained in the tables rather than hidden.
+3. **Huber is robust to the non-Gaussian tails.** The dataset contains windmill states, near-resonance
+   rows, and a few solver artefacts. A squared-error GP likelihood lets those rows dominate the fit;
+   the Huber loss down-weights residuals beyond `epsilon`, which matches the observed heavy-tailed
+   residual distribution without deleting data.
+4. **Small-sample stability and extrapolation.** With 133 rows and 17 candidate inputs, ARD length-scales
+   and kernel hyperparameters are weakly identified; the GP also reverts to its prior mean away from
+   training data. The robust linear head extrapolates smoothly along the RPM sweep and its standardised
+   coefficients are directly auditable.
+5. **Uncertainty is handled explicitly, not by the kernel.** The deployed 90 % intervals come from
+   split conformal calibration on out-of-fold residuals (`q90 = 0.418`, scale `|CT| + 0.2`), which gives
+   distribution-free coverage (96.3 % on the locked test) and maps linearly into amplitude intervals.
+   Relying on a GP's native predictive variance would make coverage conditional on the kernel choice and
+   would not automatically survive the non-linear amplitude transformation.
+
+These are not mutually exclusive model families: "Huber" is a loss on a linear regressor, while a GP is
+a Bayesian non-parametric regressor. A GP on the BET residual, or a GP member inside the ensemble, is a
+reasonable future experiment once more near-resonance and windmill data exist. On the current evidence it
+would add cost and variance without improving the held-out metrics.
 
 ---
 
@@ -282,10 +362,16 @@ cd site
 
 ---
 
-## 8. Notes on deleted / consolidated files
+## 8. Notes on deleted / consolidated / duplicated files
 
 - The original v1 notebook (`ME312_surrogate_pipeline.ipynb`) was superseded by
-  `ME312_surrogate_pipeline_v2.ipynb` and removed; v2 is now the single pipeline notebook.
-- OS junk (`.DS_Store`) and Python caches (`__pycache__`) were removed.
-- The FE beam code is duplicated intentionally in three places (standalone file, notebook, site)
-  so each can run independently; `site/app.py` and the notebook do not import the standalone file.
+  `ME312_surrogate_pipeline_v2.ipynb` and removed; v2 is now the single pipeline notebook and stays at
+  the repository root.
+- Supporting material is grouped by type: `data/`, `models/`, `figures/`, `docs/`, `src/`, and `vsp/`.
+  The notebook defines these paths explicitly and creates the output folders if they are missing.
+- OS junk (`.DS_Store`) and Python caches (`__pycache__`, `.ipynb_checkpoints`) are ignored.
+- The FE beam code is duplicated intentionally in three places (`src/Natural_Frequency_FE_Code`, the
+  notebook, and `site/app.py`) so each can run independently; `site/app.py` and the notebook do not
+  import the standalone file.
+- `site/data/` is a self-contained runtime copy served by the local website. The backend prefers the
+  canonical `data/` and `models/` files when they exist.

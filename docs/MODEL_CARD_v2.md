@@ -2,7 +2,7 @@
 
 **Artifact:** `ME312_surrogate_pipeline_v2.ipynb` (executed)
 **Single pipeline notebook:** `ME312_surrogate_pipeline_v2.ipynb` (the earlier v1 notebook was consolidated/removed)
-**Dataset:** `Dataset.xlsx` (SHA-256 `4d2b39a83dfb7ed42caec5adc71df48a2fbc2ea22900a6bc4077106540c229a3`)
+**Dataset:** `data/raw/Dataset.xlsx` (SHA-256 `4d2b39a83dfb7ed42caec5adc71df48a2fbc2ea22900a6bc4077106540c229a3`)
 **Environment:** Python 3.12.15; numpy 2.5.5; pandas 3.1.1; scipy 1.18.1; scikit-learn 1.9.1; matplotlib 3.11.2; kernel `me312`
 
 ## Architecture
@@ -27,6 +27,25 @@ The learned head is CT only. It is an equal-weight ensemble of two standardized 
 - `b13w`: the same with `r^2`-thrust-weighted chord and solidity.
 
 The ensemble hedges between the two physically motivated geometry summaries. A single b13w model and a standard ARD-GP are retained as benchmarks.
+
+### Why Huber rather than Gaussian-process regression
+
+The proposal named Gaussian-process/kriging regression as the intended surrogate, and a `GP base3`
+model is still evaluated. The deployed head is a robust linear regression because:
+
+- the exact FE branch removes the structural dynamics, so the learned quantity is a low-dimensional
+  correction to the BET prior rather than a full 17-input mapping;
+- the GP under-performs on held-out data: repeated-CV CT R² 0.651 vs 0.728 and amplitude R² 0.585 vs
+  0.790; locked-test amplitude R² 0.300 vs 0.762;
+- windmill, near-resonance, and solver-artefact rows create heavy-tailed residuals, which the Huber loss
+  down-weights while a squared-error GP likelihood does not;
+- with 133 rows, ARD length-scales and kernel hyperparameters are weakly identified, and the GP reverts
+  to its prior mean when extrapolating along an RPM sweep;
+- uncertainty is supplied by split conformal calibration on out-of-fold residuals (96.3 % locked-test
+  coverage), so the result does not depend on a kernel's native predictive variance.
+
+Huber is a loss on a linear model, not a separate model family, so a GP on the BET residual remains a
+reasonable future experiment if more near-resonance and windmill data become available.
 
 ## Exact structural branch
 
@@ -142,11 +161,12 @@ No generated `Results/results_*/prop_setup_*.vsp3` files are present, so it cann
 
 ## Files
 
-- `ME312_surrogate_pipeline_v2.ipynb` — executed main deliverable.
-- `cv_results_v2.csv`, `test_predictions_v2.csv`, `summary_v2.csv`, `material_envelope_v2.csv`.
-- `model_v2.json` — portable coefficients/scalers/conformal calibration.
-- `models_v2.pkl` — sklearn objects; requires the notebook class definitions to unpickle.
-- `fig_v2_*.png` — calibration, diagnostics, near-resonance, coefficients, material/damping, RPM sweep.
+- `ME312_surrogate_pipeline_v2.ipynb` — executed main deliverable, kept at the repository root.
+- `data/results/cv_results_v2.csv`, `data/results/test_predictions_v2.csv`, `data/results/summary_v2.csv`, `data/results/material_envelope_v2.csv`.
+- `models/model_v2.json` — portable coefficients/scalers/conformal calibration.
+- `models/models_v2.pkl` — sklearn objects; requires the notebook class definitions to unpickle.
+- `figures/fig_v2_*.png` — calibration, diagnostics, near-resonance, coefficients, material/damping, RPM sweep.
+- `data/raw/Dataset.xlsx`, `data/processed/Dataset_screened.xlsx`.
 
 ## Reproduction
 

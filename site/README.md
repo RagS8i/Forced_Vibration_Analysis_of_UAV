@@ -28,4 +28,6 @@ Then open http://localhost:8000 (or set `PORT=8080`).
   conformal intervals, domain check, RPM sweep).
 - `static/index.html`, `static/style.css`, `static/app.js` — frontend.
 - `static/vendor/chart.umd.min.js` — Chart.js served locally (no internet needed).
-- `data/` — model coefficients, CSV results, figures and datasets.
+- `data/` — self-contained copies of model coefficients, CSV results, figures and datasets served to
+  the browser. When running from a full checkout, `app.py` prefers the canonical dataset under
+  `../data/` and the canonical weights under `../models/`, then falls back to these copies.

@@ -11,6 +11,15 @@ import http.server, socketserver, urllib.parse, mimetypes
 ROOT = Path(__file__).resolve().parent
 PARENT = ROOT.parent
 DATA = ROOT / "data"
+PARENT_DATA = PARENT / "data"
+
+
+def first_existing(*paths):
+    for path in paths:
+        path = Path(path)
+        if path.exists():
+            return path
+    return Path(paths[-1])
 
 # ---------- materials ----------
 MATERIALS = {
@@ -25,7 +34,7 @@ CH = [f"Chord{i}" for i in range(1, 6)]
 TW = [f"Twist{i}" for i in range(1, 6)]
 RAW_INPUTS = ["RPM", "FreestreamVelocity", "Blades", "Diameter", "Tilt"] + CH + TW + ["SweepAngle", "AirfoilThickness"]
 
-model = json.load(open(DATA / "model_v2.json"))
+model = json.load(open(first_existing(PARENT / "models" / "model_v2.json", DATA / "model_v2.json")))
 
 # ---------- FE beam ----------
 HUB = 0.2
@@ -143,9 +152,14 @@ def amplitude(ct, row, fn, k, material, zeta, eps):
 # training raw inputs from screened dataset
 def load_training():
     try:
-        df = pd.read_excel(PARENT / "Dataset_screened.xlsx") if (PARENT/"Dataset_screened.xlsx").exists() else pd.read_excel(PARENT/"Dataset.xlsx")
+        df = pd.read_excel(first_existing(
+            PARENT_DATA / "processed" / "Dataset_screened.xlsx",
+            PARENT_DATA / "raw" / "Dataset.xlsx",
+            DATA / "Dataset_screened.xlsx",
+            DATA / "Dataset.xlsx",
+        ))
     except Exception:
-        df = pd.read_excel(DATA/"Dataset_screened.xlsx") if (DATA/"Dataset_screened.xlsx").exists() else pd.read_excel(DATA/"Dataset.xlsx")
+        df = pd.read_excel(DATA / "Dataset_screened.xlsx")
     # keep the same 133 rows the model was trained on
     if "screen_status" in df.columns:
         df = df[df.screen_status.isin(["ok", "watch"])].reset_index(drop=True)
@@ -225,7 +239,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.csv_json(DATA/"material_envelope_v2.csv")
         elif path == "/api/sample":
             # return a random training row
-            df = pd.read_excel(PARENT/"Dataset.xlsx") if (PARENT/"Dataset.xlsx").exists() else pd.read_excel(DATA/"Dataset.xlsx")
+            df = pd.read_excel(first_existing(
+                PARENT_DATA / "raw" / "Dataset.xlsx",
+                DATA / "Dataset.xlsx",
+            ))
             r = df.sample(1).iloc[0]
             out = {c: (float(r[c]) if pd.notna(r[c]) else None) for c in df.columns}
             self.json(out)
